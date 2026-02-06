@@ -51,7 +51,7 @@ const SECTION_LABELS: Record<Language, string[]> = {
 };
 
 type ParsedAssistant = {
-  nodes: JSX.Element[];
+  nodes: React.ReactElement[];
   nextQuestions: string[];
 };
 
@@ -357,69 +357,27 @@ export function ChatWidget() {
       const base =
         process.env.NEXT_PUBLIC_API_URL?.trim()?.replace(/\/$/, "") ||
         (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
-      const streamUrl = `${base}/api/chat/stream`;
+      const chatUrl = `${base}/api/chat`;
 
-      const streamRes = await fetch(streamUrl, {
+      const chatRes = await fetch(chatUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, conversationId, language: inferredLanguage })
       });
 
-      if (!streamRes.ok || !streamRes.body) {
-        const errorText = await streamRes.text().catch(() => "");
+      if (!chatRes.ok) {
+        const errorText = await chatRes.text().catch(() => "");
         const suffix = errorText ? `: ${errorText}` : "";
-        throw new Error(`Stream failed (${streamRes.status})${suffix}`);
+        throw new Error(`Chat failed (${chatRes.status})${suffix}`);
       }
 
-      const reader = streamRes.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      const updateAssistant = (delta: string) => {
-        if (!delta) return;
-        setIsStreaming(true);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m))
-        );
-      };
-
-      // Parse SSE events and append deltas to the assistant message.
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
-        buffer = events.pop() ?? "";
-
-        for (const evt of events) {
-          const lines = evt.split("\n").map((line) => line.trim()).filter(Boolean);
-          let eventType: string | null = null;
-          let dataLine: string | null = null;
-
-          for (const line of lines) {
-            if (line.startsWith("event: ")) {
-              eventType = line.slice(7).trim();
-            } else if (line.startsWith("data: ")) {
-              dataLine = line.slice(6);
-            }
-          }
-
-          if (!dataLine) continue;
-          try {
-            const parsed = JSON.parse(dataLine);
-            if (eventType === "meta" && parsed?.conversationId) {
-              setConversationId(parsed.conversationId);
-            } else if (eventType === "delta" && parsed?.text) {
-              updateAssistant(parsed.text);
-            } else if (!eventType) {
-              if (parsed?.conversationId) setConversationId(parsed.conversationId);
-              if (parsed?.text) updateAssistant(parsed.text);
-            }
-          } catch (err) {
-            console.error("Failed to parse SSE event:", err, dataLine);
-          }
-        }
-      }
+      const data = await chatRes.json();
+      setConversationId(data.conversationId);
+      
+      // Update the assistant message with the full response
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content: data.reply } : m))
+      );
     } catch (err) {
       const msg =
         err instanceof Error
