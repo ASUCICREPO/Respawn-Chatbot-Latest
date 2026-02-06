@@ -69,7 +69,7 @@ function parseAssistantContent(content: string, language: Language): ParsedAssis
     .replace(/\*\*/g, "")
     .trim();
   const lines = cleaned ? cleaned.split("\n") : [];
-  const nodes: JSX.Element[] = [];
+  const nodes: React.ReactElement[] = [];
   const nextQuestions: string[] = [];
   let i = 0;
   let currentSection: string | null = null;
