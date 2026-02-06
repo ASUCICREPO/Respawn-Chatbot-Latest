@@ -61,6 +61,10 @@ Respond completely in English."""
 def handler(event, _context):
     logger.info("Request received", extra={"path": event.get("rawPath"), "method": event.get("requestContext", {}).get("http", {}).get("method")})
 
+    # Handle streaming endpoint
+    if event.get("rawPath") == "/api/chat/stream":
+        return handle_streaming_chat(event)
+
     if event.get("rawPath") in ("/", ""):
         return json_response(
             200,
@@ -70,6 +74,7 @@ def handler(event, _context):
                 "routes": {
                     "health": {"method": "GET", "path": "/health"},
                     "chat": {"method": "POST", "path": "/api/chat", "body": {"message": "string", "language": "en|es"}},
+                    "chat_stream": {"method": "POST", "path": "/api/chat/stream", "body": {"message": "string", "language": "en|es"}},
                 },
             },
         )
@@ -128,3 +133,102 @@ def handler(event, _context):
     except Exception as exc:
         logger.exception("Bedrock request failed", exc_info=exc)
         return json_response(500, {"error": "Bedrock request failed."})
+
+
+def handle_streaming_chat(event):
+    """Handle streaming chat requests with SSE format (simulated for API Gateway)"""
+    try:
+        payload = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError:
+        return json_response(400, {"error": "Invalid JSON body."})
+
+    message = payload.get("message") if isinstance(payload.get("message"), str) else ""
+    message = message.strip()
+    conversation_id = payload.get("conversationId") if isinstance(payload.get("conversationId"), str) else None
+    language = "es" if payload.get("language") == "es" else "en"
+
+    if not message:
+        return json_response(400, {"error": "`message` is required."})
+
+    kb_id = os.getenv("BEDROCK_KB_ID", "")
+    model_id = os.getenv("BEDROCK_MODEL_ID", "")
+    
+    if not kb_id or not model_id:
+        reply = f"Dijiste: {message}" if language == "es" else f"You said: {message}"
+        # Simulate streaming for echo response
+        sse_events = []
+        session_id = conversation_id or str(uuid.uuid4())
+        sse_events.append(f"event: meta\ndata: {json.dumps({'conversationId': session_id})}\n\n")
+        
+        # Stream the reply word by word
+        words = reply.split()
+        for word in words:
+            sse_events.append(f"event: delta\ndata: {json.dumps({'text': word + ' '})}\n\n")
+        
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": "".join(sse_events)
+        }
+
+    prompt = build_prompt(message, language)
+    model_arn = f"arn:aws:bedrock:{os.getenv('AWS_REGION')}::foundation-model/{model_id}"
+
+    try:
+        client = boto3.client("bedrock-agent-runtime")
+        
+        # Get the full response first (API Gateway doesn't support true streaming)
+        res = client.retrieve_and_generate(
+            input={"text": prompt},
+            retrieveAndGenerateConfiguration={
+                "type": "KNOWLEDGE_BASE",
+                "knowledgeBaseConfiguration": {
+                    "knowledgeBaseId": kb_id,
+                    "modelArn": model_arn,
+                },
+            },
+            sessionId=conversation_id,
+        )
+        
+        reply = res.get("output", {}).get("text") or ("No tengo respuesta." if language == "es" else "No answer.")
+        session_id = res.get("sessionId") or conversation_id or str(uuid.uuid4())
+        
+        # Build SSE response - simulate streaming by breaking into words
+        sse_events = []
+        sse_events.append(f"event: meta\ndata: {json.dumps({'conversationId': session_id})}\n\n")
+        
+        # Stream word by word
+        words = reply.split()
+        for word in words:
+            sse_events.append(f"event: delta\ndata: {json.dumps({'text': word + ' '})}\n\n")
+        
+        logger.info("Streaming response completed", extra={"textLength": len(reply), "sessionId": session_id})
+        
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": "".join(sse_events)
+        }
+        
+    except Exception as exc:
+        logger.exception("Streaming request failed", exc_info=exc)
+        error_event = f"event: error\ndata: {json.dumps({'error': 'Streaming failed'})}\n\n"
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": error_event
+        }
