@@ -286,7 +286,7 @@ export class AdaptiveGamingChatbotStack extends Stack {
       name: "adaptive-gaming-guide",
       repository: amplifyRepo.valueAsString,
       oauthToken: amplifyOauthToken.valueAsString,
-      platform: "WEB_COMPUTE",
+      platform: "WEB",
       iamServiceRole: amplifyRole.roleArn,
       environmentVariables: [
         {
