@@ -55,42 +55,113 @@ def json_response(status_code, body):
     }
 
 
+def is_greeting(message):
+    """Check if the message is a greeting"""
+    greetings = [
+        "hi", "hello", "hey", "hola", "buenos dias", "buenas tardes", 
+        "good morning", "good afternoon", "good evening", "greetings",
+        "howdy", "what's up", "whats up", "sup"
+    ]
+    msg_lower = message.lower().strip()
+    # Check if message is just a greeting (less than 20 chars and contains greeting word)
+    if len(msg_lower) < 20:
+        return any(greeting in msg_lower for greeting in greetings)
+    return False
+
+
+def get_greeting_response(language):
+    """Return a friendly greeting response"""
+    if language == "es":
+        return """¡Hola! Soy tu guía de juegos adaptativos. Estoy aquí para ayudarte a hacer que los videojuegos sean accesibles para personas con diferentes habilidades físicas.
+
+Puedo ayudarte con:
+- Seleccionar controladores adaptativos apropiados
+- Configurar equipos de juego accesibles
+- Encontrar juegos compatibles con tecnologías de asistencia
+- Optimizar configuraciones para necesidades específicas de movilidad
+- Conectar controladores a diferentes consolas
+
+¿En qué puedo ayudarte hoy?"""
+    
+    return """Hello! I'm your Adaptive Gaming Guide. I'm here to help you make video games accessible for people with varying physical abilities.
+
+I can assist you with:
+- Selecting appropriate adaptive controllers
+- Setting up accessible gaming equipment
+- Finding games compatible with assistive technologies
+- Optimizing setups for specific mobility needs
+- Connecting controllers to different consoles
+
+What can I help you with today?"""
+
+
 def build_prompt(message, language):
     if language == "es":
-        return f"""IMPORTANTE: Debes responder ÚNICAMENTE en español, sin importar el idioma de la pregunta o del contenido de referencia. Si el contenido de referencia está en inglés, tradúcelo al español antes de responder. NUNCA incluyas texto en inglés en tu respuesta.
+        return f"""IMPORTANTE: Debes responder ÚNICAMENTE en español de manera profesional y amigable. Si el contenido de referencia está en inglés, tradúcelo al español antes de responder.
 
-Usa la base de conocimiento como fuente principal. Si la base no contiene suficiente información, ofrece orientación general breve y pide un detalle adicional. No digas "no puedo ayudar".
-Mantén la respuesta corta y precisa (máximo 6–8 líneas).
-No incluyas "Action:", "Response:", ni texto de sistema. No uses Markdown (sin **, #, ni código). Texto plano.
+Eres un experto en juegos adaptativos y accesibilidad. Tu objetivo es proporcionar orientación clara, práctica y empática para hacer que los videojuegos sean accesibles.
 
-Formato requerido (usa exactamente estos encabezados):
+INSTRUCCIONES:
+1. Usa la base de conocimiento como fuente principal de información
+2. Proporciona respuestas detalladas pero concisas
+3. Sé específico con nombres de productos, técnicas y pasos cuando sea posible
+4. Si la información es limitada, ofrece orientación general y haz preguntas de seguimiento relevantes
+5. Mantén un tono profesional pero cálido y accesible
+6. No uses Markdown. Solo texto plano con viñetas simples usando guiones (-)
+
+FORMATO OBLIGATORIO - DEBES USAR EXACTAMENTE ESTA ESTRUCTURA:
+
 Resumen:
-- 1–2 puntos breves.
+- [Punto clave 1 que responde directamente a la pregunta]
+- [Punto clave 2 con información específica y práctica]
+- [Punto clave 3 si es relevante]
+
 Recomendaciones:
-- 2–4 viñetas concretas.
+- [Recomendación concreta y accionable 1]
+- [Recomendación concreta y accionable 2]
+- [Recomendación concreta y accionable 3]
+- [Recomendación concreta y accionable 4 si es relevante]
+
 Siguientes preguntas:
-- 1–2 viñetas.
+- [Pregunta de seguimiento relevante 1]
+- [Pregunta de seguimiento relevante 2]
 
 Pregunta del usuario: {message}
 
-Responde completamente en español."""
-    return f"""IMPORTANT: You must respond ONLY in English. If any reference content is in another language, translate it to English before responding.
+RECUERDA: Debes usar EXACTAMENTE los encabezados "Resumen:", "Recomendaciones:", y "Siguientes preguntas:" seguidos de viñetas con guiones. No omitas ninguna sección."""
+    
+    return f"""IMPORTANT: You must respond ONLY in English in a professional and friendly manner. If reference content is in another language, translate it to English before responding.
 
-Use the knowledge base as your primary source. If the KB lacks enough info, provide brief general guidance and ask one clarifying question. Do not say you cannot help.
-Keep the response short and precise (max 6–8 lines).
-Do not include "Action:", "Response:", or any system text. Do not use Markdown (no **, #, or code). Plain text only.
+You are an expert in adaptive gaming and accessibility. Your goal is to provide clear, practical, and empathetic guidance to make video games accessible.
 
-Required format (use these exact headings):
+INSTRUCTIONS:
+1. Use the knowledge base as your primary source of information
+2. Provide detailed but concise responses
+3. Be specific with product names, techniques, and steps when possible
+4. If information is limited, offer general guidance and ask relevant follow-up questions
+5. Maintain a professional yet warm and approachable tone
+6. Do not use Markdown. Plain text only with simple bullet points using dashes (-)
+
+MANDATORY FORMAT - YOU MUST USE EXACTLY THIS STRUCTURE:
+
 Summary:
-- 1–2 brief points.
+- [Key point 1 that directly answers the question]
+- [Key point 2 with specific and practical information]
+- [Key point 3 if relevant]
+
 Recommendations:
-- 2–4 concrete bullets.
+- [Concrete and actionable recommendation 1]
+- [Concrete and actionable recommendation 2]
+- [Concrete and actionable recommendation 3]
+- [Concrete and actionable recommendation 4 if relevant]
+
 Next questions:
-- 1–2 bullets.
+- [Relevant follow-up question 1]
+- [Relevant follow-up question 2]
 
 User question: {message}
 
-Respond completely in English."""
+REMEMBER: You MUST use EXACTLY the headings "Summary:", "Recommendations:", and "Next questions:" followed by bullet points with dashes. Do not omit any section."""
 
 
 def handler(event, _context):
@@ -132,6 +203,11 @@ def handler(event, _context):
 
     if not message:
         return json_response(400, {"error": "`message` is required."})
+
+    # Handle greetings with a friendly welcome message
+    if is_greeting(message):
+        greeting_reply = get_greeting_response(language)
+        return json_response(200, {"conversationId": conversation_id or str(uuid.uuid4()), "reply": greeting_reply})
 
     kb_id = os.getenv("BEDROCK_KB_ID", "")
     model_id = os.getenv("BEDROCK_MODEL_ID", "")
@@ -191,6 +267,30 @@ def handle_streaming_chat(event):
 
     if not message:
         return json_response(400, {"error": "`message` is required."})
+
+    # Handle greetings with a friendly welcome message
+    if is_greeting(message):
+        greeting_reply = get_greeting_response(language)
+        # Simulate streaming for greeting
+        sse_events = []
+        session_id = conversation_id or str(uuid.uuid4())
+        sse_events.append(f"event: meta\ndata: {json.dumps({'conversationId': session_id})}\n\n")
+        
+        # Stream the greeting word by word
+        words = greeting_reply.split()
+        for word in words:
+            sse_events.append(f"event: delta\ndata: {json.dumps({'text': word + ' '})}\n\n")
+        
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": "".join(sse_events)
+        }
 
     kb_id = os.getenv("BEDROCK_KB_ID", "")
     model_id = os.getenv("BEDROCK_MODEL_ID", "")
