@@ -8,6 +8,41 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Cache account ID
+_account_id_cache = None
+
+
+def get_account_id(context=None):
+    """Get AWS account ID from Lambda context or STS"""
+    global _account_id_cache
+    if _account_id_cache:
+        return _account_id_cache
+    
+    if context and hasattr(context, 'invoked_function_arn'):
+        _account_id_cache = context.invoked_function_arn.split(":")[4]
+        return _account_id_cache
+    
+    # Fallback to STS
+    try:
+        sts = boto3.client('sts')
+        _account_id_cache = sts.get_caller_identity()['Account']
+        return _account_id_cache
+    except Exception:
+        return ""
+
+
+def get_model_arn(model_id, region, account_id="", model_arn_override=""):
+    """Get the correct model ARN based on model ID format"""
+    if model_arn_override:
+        return model_arn_override
+    
+    if model_id.startswith("us.") or model_id.startswith("global."):
+        # This is an inference profile ID
+        return f"arn:aws:bedrock:{region}:{account_id}:inference-profile/{model_id}"
+    else:
+        # This is a foundation model ID
+        return f"arn:aws:bedrock:{region}::foundation-model/{model_id}"
+
 
 def json_response(status_code, body):
     return {
@@ -110,22 +145,29 @@ def handler(event, _context):
     prompt = build_prompt(message, language)
     logger.info("Prompt prepared", extra={"preview": prompt[:240]})
 
-    model_arn = model_arn_override or f"arn:aws:bedrock:{os.getenv('AWS_REGION')}::foundation-model/{model_id}"
+    account_id = get_account_id(_context)
+    model_arn = get_model_arn(model_id, os.getenv('AWS_REGION', 'us-east-1'), account_id, model_arn_override)
     logger.info("Sending RetrieveAndGenerate", extra={"kbId": kb_id, "modelArn": model_arn, "sessionId": conversation_id})
 
     try:
         client = boto3.client("bedrock-agent-runtime")
-        res = client.retrieve_and_generate(
-            input={"text": prompt},
-            retrieveAndGenerateConfiguration={
+        
+        # Build request parameters - only include sessionId if it exists
+        request_params = {
+            "input": {"text": prompt},
+            "retrieveAndGenerateConfiguration": {
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": kb_id,
                     "modelArn": model_arn,
                 },
             },
-            sessionId=conversation_id,
-        )
+        }
+        
+        if conversation_id:
+            request_params["sessionId"] = conversation_id
+        
+        res = client.retrieve_and_generate(**request_params)
         reply = res.get("output", {}).get("text") or ("No tengo respuesta." if language == "es" else "No answer.")
         session_id = res.get("sessionId") or conversation_id or str(uuid.uuid4())
         logger.info("Bedrock response received", extra={"hasOutput": bool(res.get("output", {}).get("text")), "outputPreview": reply[:240], "sessionId": session_id})
@@ -177,23 +219,29 @@ def handle_streaming_chat(event):
         }
 
     prompt = build_prompt(message, language)
-    model_arn = f"arn:aws:bedrock:{os.getenv('AWS_REGION')}::foundation-model/{model_id}"
+    account_id = get_account_id()
+    model_arn = get_model_arn(model_id, os.getenv('AWS_REGION', 'us-east-1'), account_id)
 
     try:
         client = boto3.client("bedrock-agent-runtime")
         
-        # Get the full response first (API Gateway doesn't support true streaming)
-        res = client.retrieve_and_generate(
-            input={"text": prompt},
-            retrieveAndGenerateConfiguration={
+        # Build request parameters - only include sessionId if it exists
+        request_params = {
+            "input": {"text": prompt},
+            "retrieveAndGenerateConfiguration": {
                 "type": "KNOWLEDGE_BASE",
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": kb_id,
                     "modelArn": model_arn,
                 },
             },
-            sessionId=conversation_id,
-        )
+        }
+        
+        if conversation_id:
+            request_params["sessionId"] = conversation_id
+        
+        # Get the full response first (API Gateway doesn't support true streaming)
+        res = client.retrieve_and_generate(**request_params)
         
         reply = res.get("output", {}).get("text") or ("No tengo respuesta." if language == "es" else "No answer.")
         session_id = res.get("sessionId") or conversation_id or str(uuid.uuid4())
