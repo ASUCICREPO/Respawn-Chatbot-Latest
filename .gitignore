@@ -5,7 +5,9 @@ node_modules/
 # Build outputs
 frontend/dist/
 frontend/.next/
+frontend/out/
 infrastructure/cdk/cdk.out/
+backend/infrastructure/cdk/cdk.out/
 *.tsbuildinfo
 
 # Environment files
@@ -35,6 +37,7 @@ yarn-error.log*
 
 # CDK
 infrastructure/cdk/.cdk.staging/
+backend/infrastructure/cdk/.cdk.staging/
 
 # Misc
 *.zip
