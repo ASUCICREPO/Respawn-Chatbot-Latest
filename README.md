@@ -568,7 +568,6 @@ This application was developed by the ASU Cloud Innovation Center team in collab
 **Development Team:**
 - Solutions Architects
 - Full-Stack Developers
-- AI/ML Engineers
 - UX/UI Designers
 
 **Special Thanks:**
