@@ -41,3 +41,4 @@ backend/infrastructure/cdk/.cdk.staging/
 
 # Misc
 *.zip
+images/Respawn Demo.mov
