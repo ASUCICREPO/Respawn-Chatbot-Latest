@@ -49,6 +49,13 @@ ReSpawn is an intelligent chatbot designed to assist therapists, rehabilitation 
 
 Built on a serverless architecture with real-time streaming communication, secure knowledge base integration, and an intuitive chat interface, ReSpawn makes adaptive gaming guidance accessible and actionable.
 
+## Live Demo
+
+Watch the full walkthrough of ReSpawn – Adaptive Gaming ChatBot in action:
+
+ **Demo Video:**  
+https://drive.google.com/file/d/1HYQhCOuRX3fgbZ79ctzO9wGjHukn7RVZ/preview
+
 ### Key Features
 
 - **Multi-Language Support**: Seamless English and Spanish conversation with automatic language detection
