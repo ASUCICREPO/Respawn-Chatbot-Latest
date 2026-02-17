@@ -248,6 +248,33 @@ def handler(event, _context):
         session_id = res.get("sessionId") or conversation_id or str(uuid.uuid4())
         logger.info("Bedrock response received", extra={"hasOutput": bool(res.get("output", {}).get("text")), "outputPreview": reply[:240], "sessionId": session_id})
         return json_response(200, {"conversationId": session_id, "reply": reply})
+    except client.exceptions.ValidationException as exc:
+        # Handle invalid/expired session ID - retry without session ID
+        error_msg = str(exc)
+        if "Session with Id" in error_msg and "is not valid" in error_msg:
+            logger.warning("Invalid session ID, retrying without session", extra={"oldSessionId": conversation_id})
+            try:
+                # Retry without session ID to start a new conversation
+                request_params_retry = {
+                    "input": {"text": prompt},
+                    "retrieveAndGenerateConfiguration": {
+                        "type": "KNOWLEDGE_BASE",
+                        "knowledgeBaseConfiguration": {
+                            "knowledgeBaseId": kb_id,
+                            "modelArn": model_arn,
+                        },
+                    },
+                }
+                res = client.retrieve_and_generate(**request_params_retry)
+                reply = res.get("output", {}).get("text") or ("No tengo respuesta." if language == "es" else "No answer.")
+                session_id = res.get("sessionId") or str(uuid.uuid4())
+                logger.info("Bedrock response received after retry", extra={"newSessionId": session_id})
+                return json_response(200, {"conversationId": session_id, "reply": reply})
+            except Exception as retry_exc:
+                logger.exception("Bedrock retry failed", exc_info=retry_exc)
+                return json_response(500, {"error": "Bedrock request failed."})
+        logger.exception("Bedrock validation error", exc_info=exc)
+        return json_response(500, {"error": "Bedrock request failed."})
     except Exception as exc:
         logger.exception("Bedrock request failed", exc_info=exc)
         return json_response(500, {"error": "Bedrock request failed."})
@@ -368,6 +395,68 @@ def handle_streaming_chat(event):
             "body": "".join(sse_events)
         }
         
+    except client.exceptions.ValidationException as exc:
+        # Handle invalid/expired session ID - retry without session ID
+        error_msg = str(exc)
+        if "Session with Id" in error_msg and "is not valid" in error_msg:
+            logger.warning("Invalid session ID in streaming, retrying without session", extra={"oldSessionId": conversation_id})
+            try:
+                # Retry without session ID
+                request_params_retry = {
+                    "input": {"text": prompt},
+                    "retrieveAndGenerateConfiguration": {
+                        "type": "KNOWLEDGE_BASE",
+                        "knowledgeBaseConfiguration": {
+                            "knowledgeBaseId": kb_id,
+                            "modelArn": model_arn,
+                        },
+                    },
+                }
+                res = client.retrieve_and_generate(**request_params_retry)
+                reply = res.get("output", {}).get("text") or ("No tengo respuesta." if language == "es" else "No answer.")
+                session_id = res.get("sessionId") or str(uuid.uuid4())
+                
+                # Build SSE response
+                sse_events = []
+                sse_events.append(f"event: meta\ndata: {json.dumps({'conversationId': session_id})}\n\n")
+                words = reply.split()
+                for word in words:
+                    sse_events.append(f"event: delta\ndata: {json.dumps({'text': word + ' '})}\n\n")
+                
+                logger.info("Streaming response completed after retry", extra={"newSessionId": session_id})
+                return {
+                    "statusCode": 200,
+                    "headers": {
+                        "Content-Type": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "Access-Control-Allow-Origin": "*",
+                    },
+                    "body": "".join(sse_events)
+                }
+            except Exception as retry_exc:
+                logger.exception("Streaming retry failed", exc_info=retry_exc)
+                error_event = f"event: error\ndata: {json.dumps({'error': 'Streaming failed'})}\n\n"
+                return {
+                    "statusCode": 200,
+                    "headers": {
+                        "Content-Type": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Access-Control-Allow-Origin": "*",
+                    },
+                    "body": error_event
+                }
+        logger.exception("Streaming validation error", exc_info=exc)
+        error_event = f"event: error\ndata: {json.dumps({'error': 'Streaming failed'})}\n\n"
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": error_event
+        }
     except Exception as exc:
         logger.exception("Streaming request failed", exc_info=exc)
         error_event = f"event: error\ndata: {json.dumps({'error': 'Streaming failed'})}\n\n"
