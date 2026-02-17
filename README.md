@@ -72,7 +72,7 @@ https://github.com/user-attachments/assets/Respawn%20Demo.mov
 
 ## Architecture
 
-![Architecture Diagram](AdaptiveGamingBotArc.jpg)
+![Architecture Diagram](documents/AdaptiveGamingBotArc.jpg)
 
 The application implements a serverless, event-driven architecture with AWS Bedrock at its core:
 
@@ -473,7 +473,9 @@ Estimated monthly cost for moderate usage: $50-$150
 │       └── package.json
 │
 ├── amplify.yml                  # Amplify build specification
-├── AdaptiveGamingBotArc.jpg    # Architecture diagram
+├── documents/                   # Documentation assets
+│   ├── AdaptiveGamingBotArc.jpg # Architecture diagram
+│   └── Respawn Demo.mov         # Demo video
 ├── README.md
 └── .gitignore
 ```
