@@ -53,11 +53,8 @@ Built on a serverless architecture with real-time streaming communication, secur
 
 Watch the full walkthrough of ReSpawn – Adaptive Gaming ChatBot in action:
 
-**Demo Video:**
 
 https://github.com/user-attachments/assets/a725c03d-ba6c-4e51-932b-491a3ff2527f
-
-
 
 
 ### Key Features
