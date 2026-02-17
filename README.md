@@ -55,7 +55,7 @@ Watch the full walkthrough of ReSpawn – Adaptive Gaming ChatBot in action:
 
 **Demo Video:**
 
-https://github.com/ASUCICREPO/Respawn-Chatbot-Latest/assets/Respawn-Demo.mp4
+documents/Respawn-Demo.mp4
 
 ### Key Features
 
