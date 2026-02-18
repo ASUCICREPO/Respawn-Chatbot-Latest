@@ -1,0 +1,75 @@
+version: 0.2
+
+# AWS CodeBuild buildspec for ReSpawn Adaptive Gaming ChatBot
+# This file automates the deployment process using AWS CodeBuild
+
+env:
+  parameter-store:
+    # Store your GitHub token in AWS Systems Manager Parameter Store
+    # aws ssm put-parameter --name "/respawn/github-token" --value "your-token" --type "SecureString"
+    AMPLIFY_OAUTH_TOKEN: /respawn/github-token
+  variables:
+    # Deployment configuration
+    AWS_REGION: us-east-1
+    AMPLIFY_REPOSITORY: https://github.com/ASUCICREPO/Respawn-Chatbot-Latest
+    WEB_CRAWL_SEED_URLS: https://www.gamingreadapted.com/,https://gameaccess.info/
+    AMPLIFY_BRANCH: main
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+      python: 3.11
+    commands:
+      - echo "Installing dependencies..."
+      - echo "Node version:" && node --version
+      - echo "NPM version:" && npm --version
+      - echo "Python version:" && python3 --version
+      - npm install -g aws-cdk
+      - echo "CDK version:" && cdk --version
+      
+  pre_build:
+    commands:
+      - echo "Pre-build phase started..."
+      - export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - echo "AWS Account ID:" $AWS_ACCOUNT_ID
+      - echo "AWS Region:" $AWS_REGION
+      - export AWS_PROFILE=default
+      - echo "Installing CDK dependencies..."
+      - cd backend/infrastructure/cdk
+      - npm install
+      - echo "Bootstrapping CDK..."
+      - npx cdk bootstrap aws://${AWS_ACCOUNT_ID}/${AWS_REGION} || echo "CDK already bootstrapped"
+      - cd ../../..
+      
+  build:
+    commands:
+      - echo "Build phase started..."
+      - echo "Deploying infrastructure stack..."
+      - chmod +x scripts/deploy.sh
+      - ./scripts/deploy.sh
+      
+  post_build:
+    commands:
+      - echo "Post-build phase started..."
+      - echo "Deployment completed successfully!"
+      - echo "Checking for Amplify URL..."
+      - |
+        if [ -f amplify-url.txt ]; then
+          echo "Amplify Application URL:"
+          cat amplify-url.txt
+        else
+          echo "Amplify URL file not found"
+        fi
+      - echo "Deployment outputs saved to artifacts"
+
+artifacts:
+  files:
+    - amplify-url.txt
+    - backend/infrastructure/cdk/cdk.out/**/*
+  name: respawn-deployment-$(date +%Y%m%d-%H%M%S)
+
+cache:
+  paths:
+    - 'backend/infrastructure/cdk/node_modules/**/*'
+    - 'frontend/node_modules/**/*'

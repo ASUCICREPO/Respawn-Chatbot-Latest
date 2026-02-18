@@ -2,6 +2,12 @@
 
 A comprehensive AI-powered chatbot application that provides intelligent guidance and support for adaptive gaming in therapy and rehabilitation settings, powered by AWS Bedrock Knowledge Base and cutting-edge AI technologies.
 
+## Demo
+
+Watch the full walkthrough of ReSpawn – Adaptive Gaming ChatBot in action:
+
+https://github.com/user-attachments/assets/a725c03d-ba6c-4e51-932b-491a3ff2527f
+
 ## Disclaimers
 Customers are responsible for making their own independent assessment of the information in this document.
 
@@ -28,6 +34,7 @@ All work produced is open source. More information can be found in the GitHub re
 ## Index
 
 - [Overview](#overview)
+- [Live Demo](#live-demo)
 - [Architecture](#architecture)
 - [Key Features](#key-features)
 - [Technology Stack](#technology-stack)
@@ -40,6 +47,7 @@ All work produced is open source. More information can be found in the GitHub re
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
 - [Credits](#credits)
 - [License](#license)
 
@@ -49,12 +57,7 @@ ReSpawn is an intelligent chatbot designed to assist therapists, rehabilitation 
 
 Built on a serverless architecture with real-time streaming communication, secure knowledge base integration, and an intuitive chat interface, ReSpawn makes adaptive gaming guidance accessible and actionable.
 
-## Live Demo
 
-Watch the full walkthrough of ReSpawn – Adaptive Gaming ChatBot in action:
-
-
-https://github.com/user-attachments/assets/a725c03d-ba6c-4e51-932b-491a3ff2527f
 
 
 ### Key Features
@@ -134,211 +137,163 @@ The application implements a serverless, event-driven architecture with AWS Bedr
 
 ## Prerequisites
 
-Before deploying or running locally, ensure you have:
+Before deploying or running locally, ensure you have the required tools and accounts.
 
-### Required Tools
+### Quick Prerequisites Checklist
+
 - **Node.js**: v20 or higher
 - **Python**: 3.11 or higher
 - **AWS CLI**: v2.x configured with valid credentials
 - **AWS CDK**: v2.175.0 or higher
 - **Git**: For version control
+- **AWS Account**: With Bedrock model access enabled
+- **GitHub Account**: With Personal Access Token (repo scope)
 
-### AWS Account Requirements
-- Active AWS account with appropriate permissions
-- Bedrock model access enabled for:
-  - `amazon.nova-lite-v1:0` (or your chosen LLM)
-  - `amazon.titan-embed-text-v2:0` (for embeddings)
-- IAM permissions for:
-  - Lambda, API Gateway, Bedrock, OpenSearch Serverless
-  - CloudWatch Logs, IAM roles
-  - Amplify (for frontend hosting)
+### Detailed Setup Instructions
 
-### GitHub Requirements
-- GitHub account
-- Personal Access Token with `repo` scope (for Amplify deployment)
+For complete installation and configuration instructions, including:
+- Step-by-step tool installation for macOS, Linux, and Windows
+- AWS account setup and credential configuration
+- GitHub token creation
+- Environment variable configuration
+- Verification steps
+
+See the **[Setup Guide](documents/SETUP_GUIDE.md)** for detailed instructions.
 
 ## Local Development
 
-### Backend Setup
+For local development and testing before deployment.
 
-1. Navigate to the backend directory:
-```bash
-cd backend
-```
+### Quick Start
 
-2. Create and activate a virtual environment:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+1. **Clone Repository**
+   ```bash
+   git clone https://github.com/ASUCICREPO/Respawn-Chatbot-Latest.git
+   cd Respawn-Chatbot-Latest
+   ```
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+2. **Backend Setup**
+   ```bash
+   cd backend
+   python3 -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   cp env.example .env
+   # Edit .env with your configuration
+   uvicorn app.main:app --reload --port 8000
+   ```
 
-4. Configure environment variables (copy from `env.example`):
-```bash
-cp env.example .env
-```
+3. **Frontend Setup** (in a new terminal)
+   ```bash
+   cd frontend
+   npm install
+   echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+   npm run dev
+   ```
 
-Edit `.env` with your values:
-```env
-PORT=8000
-CORS_ORIGIN=http://localhost:3000
-BEDROCK_KB_ID=your-kb-id
-BEDROCK_MODEL_ID=amazon.nova-lite-v1:0
-```
+4. **Test Locally**
+   - Open `http://localhost:3000`
+   - Click the chat button and test functionality
 
-5. Run the development server:
-```bash
-uvicorn app.main:app --reload --port 8000
-```
+### Detailed Setup Instructions
 
-The backend will be available at `http://localhost:8000`
+For complete local development setup, including:
+- Virtual environment configuration
+- Dependency installation
+- Environment variable setup
+- Running backend and frontend servers
+- Troubleshooting common issues
 
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Configure environment variables:
-```bash
-# Create .env.local file
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
-```
-
-4. Run the development server:
-```bash
-npm run dev
-```
-
-The frontend will be available at `http://localhost:3000`
-
-### Testing Locally
-
-1. Open `http://localhost:3000` in your browser
-2. Click the floating chat button (bottom-right)
-3. Select a language (EN/ES)
-4. Try an FAQ question or type your own
-5. Verify responses stream correctly
+See the **[Setup Guide - Local Development Setup](documents/SETUP_GUIDE.md#local-development-setup)** section.
 
 ## Deployment
 
-### Step 1: Prepare AWS Credentials
+ReSpawn offers multiple deployment options to suit your needs:
 
-**Option A: AWS SSO (Recommended)**
-```bash
-aws sso login --profile your-profile-name
-export AWS_PROFILE=your-profile-name
-```
+### Quick Deployment (Recommended)
 
-**Option B: AWS Configure**
-```bash
-aws configure
-# Enter your Access Key ID and Secret Access Key
-```
-
-### Step 2: Bootstrap CDK (One-time per account/region)
+Use the automated deployment script for the fastest setup:
 
 ```bash
-cd infrastructure/cdk
-npm install
+# Set environment variables
+export AWS_PROFILE="your-aws-profile"
+export AWS_REGION="us-east-1"
+export AMPLIFY_REPOSITORY="https://github.com/ASUCICREPO/Respawn-Chatbot-Latest"
+export AMPLIFY_OAUTH_TOKEN="your-github-token"
+export WEB_CRAWL_SEED_URLS="https://www.gamingreadapted.com/,https://gameaccess.info/"
+export AMPLIFY_BRANCH="main"
 
-# Bootstrap CDK (replace with your account ID)
-npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
+# Run deployment script
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
-### Step 3: Prepare Deployment Parameters
+### Deployment Options
 
-You'll need:
-1. **Web Crawler Seed URLs**: Comma-separated list of URLs to crawl for knowledge base content
-2. **GitHub Repository URL**: `https://github.com/ASUCICREPO/Respawn--Adaptive-Gaming-ChatBot`
-3. **GitHub Personal Access Token**: Create at https://github.com/settings/tokens
-   - Required scopes: `repo`
-4. **Branch Name**: `main` (or your deployment branch)
+Choose the deployment method that works best for you:
 
-### Step 4: Deploy Infrastructure
+1. **Quick Deployment with Script** - Automated one-command deployment
+2. **Manual Deployment** - Step-by-step control over the deployment process
+3. **AWS CloudShell Deployment** - Deploy directly from AWS Console without local setup
+4. **AWS CodeBuild Deployment** - Automated CI/CD pipeline for continuous deployment
 
-```bash
-cd infrastructure/cdk
+### Detailed Deployment Guides
 
-npx cdk deploy \
-  --parameters WebCrawlSeedUrls="https://example.com,https://docs.example.com" \
-  --parameters AmplifyRepository="https://github.com/ASUCICREPO/Respawn--Adaptive-Gaming-ChatBot" \
-  --parameters AmplifyOauthToken="YOUR_GITHUB_TOKEN" \
-  --parameters AmplifyBranch="main" \
-  --require-approval never
-```
+For comprehensive deployment instructions, see:
+- **[Deployment Guide](documents/DEPLOYMENT_GUIDE.md)** - Complete deployment instructions for all methods
+- **[Setup Guide](documents/SETUP_GUIDE.md)** - Prerequisites and environment setup
 
-### Step 5: Note Deployment Outputs
+### Quick Start
 
-After successful deployment, CDK will output:
-- `HttpApiUrl`: Your API Gateway endpoint (e.g., `https://abc123.execute-api.us-east-1.amazonaws.com`)
+1. **Prerequisites**: AWS CLI, Node.js 20+, Python 3.11+, GitHub token
+2. **Clone Repository**: `git clone https://github.com/ASUCICREPO/Respawn-Chatbot-Latest.git`
+3. **Run Deployment**: `./scripts/deploy.sh` (after setting environment variables)
+4. **Configure**: Enable Bedrock models and start Knowledge Base ingestion
+
+### Deployment Outputs
+
+After successful deployment, you'll receive:
+- `HttpApiUrl`: Your API Gateway endpoint
 - `KnowledgeBaseId`: Bedrock Knowledge Base ID
 - `OpenSearchCollectionName`: OpenSearch Serverless collection name
 - `AmplifyAppId`: Amplify application ID
+- `AmplifyAppUrl`: Your live application URL (saved to `amplify-url.txt`)
 
 ## Post-Deployment Setup
 
-### 1. Enable Bedrock Model Access
+After deploying the infrastructure, complete these essential configuration steps:
 
-1. Go to AWS Console → Amazon Bedrock → Model access
-2. Click "Manage model access"
-3. Enable the following models:
-   - `Amazon Nova Lite` (for chat responses)
-   - `Titan Embeddings G1 - Text v2` (for vector embeddings)
-4. Wait for access to be granted (usually instant)
+### Quick Post-Deployment Checklist
 
-### 2. Sync Knowledge Base Content
+1. **Enable Bedrock Model Access** (AWS Console)
+   - Go to Amazon Bedrock → Model access
+   - Enable: Amazon Nova Lite and Titan Embeddings G1 - Text v2
 
-Trigger the web crawler to ingest content:
+2. **Start Knowledge Base Ingestion**
+   ```bash
+   # Get data source ID and start ingestion
+   aws bedrock-agent list-data-sources --knowledge-base-id <KB_ID> --region us-east-1
+   aws bedrock-agent start-ingestion-job --knowledge-base-id <KB_ID> --data-source-id <DS_ID> --region us-east-1
+   ```
 
-```bash
-# Get the data source ID
-aws bedrock-agent list-data-sources \
-  --knowledge-base-id <KnowledgeBaseId-from-output> \
-  --region us-east-1
+3. **Verify Amplify Deployment**
+   - Check AWS Console → Amplify → adaptive-gaming-guide
+   - Ensure build status is "Deployed"
 
-# Start ingestion job
-aws bedrock-agent start-ingestion-job \
-  --knowledge-base-id <KnowledgeBaseId> \
-  --data-source-id <DataSourceId-from-list> \
-  --region us-east-1
-```
+4. **Test the Application**
+   - Open the Amplify URL (from deployment outputs or `amplify-url.txt`)
+   - Test chat functionality in both English and Spanish
 
-Monitor ingestion progress:
-```bash
-aws bedrock-agent list-ingestion-jobs \
-  --knowledge-base-id <KnowledgeBaseId> \
-  --data-source-id <DataSourceId> \
-  --region us-east-1
-```
+### Detailed Instructions
 
-### 3. Verify Amplify Deployment
+For complete post-deployment configuration steps, including:
+- Bedrock model access setup
+- Knowledge Base ingestion monitoring
+- Amplify environment variable configuration
+- API endpoint testing
+- Troubleshooting common issues
 
-1. Go to AWS Console → AWS Amplify
-2. Find your app: `adaptive-gaming-guide`
-3. Check build status (should be "Deployed")
-4. Click the deployment URL to access your live application
-
-### 4. Test the Deployment
-
-1. Open the Amplify app URL
-2. Click the chat button
-3. Ask a test question
-4. Verify:
-   - Response streams correctly
-   - Language toggle works
-   - FAQ questions load
-   - Conversation history persists
+See the **[Deployment Guide - Post-Deployment Configuration](documents/DEPLOYMENT_GUIDE.md#post-deployment-configuration)** section.
 
 ## Usage
 
@@ -355,53 +310,6 @@ aws bedrock-agent list-ingestion-jobs \
    - Next questions (clickable suggestions)
 5. **Continue Conversation**: Ask follow-up questions to maintain context
 6. **Clear Chat**: Click the refresh icon to start a new conversation
-
-### API Endpoints
-
-#### POST /api/chat
-Send a chat message and receive a response.
-
-**Request:**
-```json
-{
-  "message": "What games work best for patients with limited mobility?",
-  "conversationId": "optional-session-id",
-  "language": "en"
-}
-```
-
-**Response:**
-```json
-{
-  "conversationId": "session-id",
-  "reply": "Summary:\n- Games with customizable controls...\n\nRecommendations:\n- Try turn-based strategy games..."
-}
-```
-
-#### GET /health
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-#### GET /
-API information endpoint.
-
-**Response:**
-```json
-{
-  "ok": true,
-  "message": "Adaptive Gaming Guide API",
-  "routes": {
-    "health": {"method": "GET", "path": "/health"},
-    "chat": {"method": "POST", "path": "/api/chat"}
-  }
-}
-```
 
 ## Infrastructure
 
@@ -570,6 +478,41 @@ aws bedrock-agent get-knowledge-base \
   --knowledge-base-id <your-kb-id> \
   --region us-east-1
 ```
+
+## Documentation
+
+Comprehensive guides for setup, deployment, and configuration:
+
+### Setup and Installation
+- **[Setup Guide](documents/SETUP_GUIDE.md)** - Complete setup instructions for local development and AWS prerequisites
+  - Local development environment setup
+  - AWS account configuration
+  - GitHub setup and token creation
+  - Environment variable configuration
+  - Verification steps and troubleshooting
+
+### Deployment
+- **[Deployment Guide](documents/DEPLOYMENT_GUIDE.md)** - Multiple deployment options with detailed instructions
+  - Quick deployment with automated script
+  - Manual step-by-step deployment
+  - AWS CloudShell deployment (no local setup required)
+  - AWS CodeBuild CI/CD deployment
+  - Post-deployment configuration
+  - Troubleshooting and cleanup
+
+### Architecture and Design
+- **[Architecture Diagram](documents/AdaptiveGamingBotArc.jpg)** - Visual representation of the system architecture
+- **[Demo Video](https://github.com/user-attachments/assets/a725c03d-ba6c-4e51-932b-491a3ff2527f)** - Full walkthrough of the application
+
+### Quick Links
+- [Local Development Setup](documents/SETUP_GUIDE.md#local-development-setup)
+- [AWS Account Setup](documents/SETUP_GUIDE.md#aws-account-setup)
+- [Quick Deployment](documents/DEPLOYMENT_GUIDE.md#quick-deployment-with-script)
+- [CloudShell Deployment](documents/DEPLOYMENT_GUIDE.md#aws-cloudshell-deployment)
+- [CodeBuild Deployment](documents/DEPLOYMENT_GUIDE.md#aws-codebuild-deployment)
+- [Post-Deployment Configuration](documents/DEPLOYMENT_GUIDE.md#post-deployment-configuration)
+
+---
 
 ## Credits
 
