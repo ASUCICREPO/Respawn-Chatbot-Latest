@@ -516,36 +516,11 @@ Comprehensive guides for setup, deployment, and configuration:
 
 ## Credits
 
-This application was developed by the ASU Cloud Innovation Center team in collaboration with adaptive gaming specialists and healthcare professionals.
-
-**Development Team:**
-- Solutions Architects
-- Full-Stack Developers
-- UX/UI Designers
-
-**Special Thanks:**
-- AWS Bedrock team for AI/ML capabilities
-- Adaptive gaming community for domain expertise
-- Healthcare professionals for requirements and feedback
+This application was architected and developed by [Sayantika Paul](https://www.linkedin.com/in/sayantikapaul12/) and [Omdevsinh Zala](https://www.linkedin.com/in/omdevsinhzala/) with solutions architect [Arun Arunachalam](https://www.linkedin.com/in/arunarunachalam/), program manager [Thomas Orr](https://www.linkedin.com/in/thomas-orr/) and product manager [Rachel Hayden](https://www.linkedin.com/in/rachelhayden/). Thanks to the ASU Cloud Innovation Centre and Career Services' Technical and Project Management teams for their guidance and support.
 
 ## License
 
 See [LICENSE](LICENSE) file for details.
-
----
-
-## Additional Resources
-
-- [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [Next.js Documentation](https://nextjs.org/docs)
-- [AWS Amplify Documentation](https://docs.amplify.aws/)
-
-## Support
-
-For questions, issues, or support:
-- **Email**: ai-cic@amazon.com
-- **Issues**: [GitHub Issues](https://github.com/ASUCICREPO/Respawn--Adaptive-Gaming-ChatBot/issues)
 
 ---
 
