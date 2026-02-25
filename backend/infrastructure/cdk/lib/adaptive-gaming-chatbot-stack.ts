@@ -4,7 +4,6 @@ import {
   Stack,
   StackProps,
   CfnOutput,
-  CfnResource,
   CfnParameter
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
@@ -30,176 +29,21 @@ export class AdaptiveGamingChatbotStack extends Stack {
 
     const bedrockModelId =
       this.node.tryGetContext("bedrockModelId") ??
-      // Default to a first-party Bedrock model that does NOT require AWS Marketplace subscription.
       "amazon.nova-lite-v1:0";
 
-    const embeddingModelArn =
-      this.node.tryGetContext("embeddingModelArn") ??
-      `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`;
-
-    const webSeedUrls = new CfnParameter(this, "WebCrawlSeedUrls", {
-      type: "CommaDelimitedList",
-      description: "Comma-delimited list of seed URLs for the Bedrock web crawler."
-    });
-
-    /**
-     * Vector store: OpenSearch Serverless (VECTORSEARCH collection).
-     * Using L1 resources to keep compatibility with the newest service features.
-     */
-    const collectionName = "adaptive-gaming-vector";
-    const aossCollection = new CfnResource(this, "VectorCollection", {
-      type: "AWS::OpenSearchServerless::Collection",
-      properties: {
-        Name: collectionName,
-        Type: "VECTORSEARCH",
-        Description: "Vector store for Adaptive Gaming Guide chatbot"
-      }
-    });
-
-    const encryptionPolicy = new CfnResource(this, "VectorEncryptionPolicy", {
-      type: "AWS::OpenSearchServerless::SecurityPolicy",
-      properties: {
-        Name: "adaptive-gaming-encryption",
-        Type: "encryption",
-        Policy: JSON.stringify({
-          Rules: [{ ResourceType: "collection", Resource: [`collection/${collectionName}`] }],
-          AWSOwnedKey: true
-        })
-      }
-    });
-    aossCollection.node.addDependency(encryptionPolicy);
-
-    const networkPolicy = new CfnResource(this, "VectorNetworkPolicy", {
-      type: "AWS::OpenSearchServerless::SecurityPolicy",
-      properties: {
-        Name: "adaptive-gaming-network",
-        Type: "network",
-        Policy: JSON.stringify([
-          {
-            Rules: [
-              { ResourceType: "collection", Resource: [`collection/${collectionName}`] },
-              { ResourceType: "dashboard", Resource: [`collection/${collectionName}`] }
-            ],
-            AllowFromPublic: true
-          }
-        ])
-      }
-    });
-    aossCollection.node.addDependency(networkPolicy);
-
-    // Role assumed by Bedrock Knowledge Base to read S3 and write to AOSS.
-    const kbRole = new iam.Role(this, "BedrockKbRole", {
-      assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com")
-    });
-    kbRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["aoss:APIAccessAll"],
-        resources: ["*"]
-      })
-    );
-
-    // Bedrock Knowledge Base (VECTOR) storing embeddings in OpenSearch Serverless.
-    const kbVectorIndexName = "adaptive-gaming-index";
-    const knowledgeBase = new CfnResource(this, "KnowledgeBase", {
-      type: "AWS::Bedrock::KnowledgeBase",
-      properties: {
-        Name: "adaptive-gaming-guide-kb",
-        RoleArn: kbRole.roleArn,
-        KnowledgeBaseConfiguration: {
-          Type: "VECTOR",
-          VectorKnowledgeBaseConfiguration: {
-            EmbeddingModelArn: embeddingModelArn
-          }
-        },
-        StorageConfiguration: {
-          Type: "OPENSEARCH_SERVERLESS",
-          OpensearchServerlessConfiguration: {
-            CollectionArn: aossCollection.getAtt("Arn").toString(),
-            VectorIndexName: kbVectorIndexName,
-            FieldMapping: {
-              VectorField: "vector",
-              TextField: "text",
-              MetadataField: "metadata"
-            }
-          }
-        }
-      }
-    });
-    knowledgeBase.node.addDependency(aossCollection);
-
-    // Data source: Web crawler (subdomains scope, rate limit 30, regex inclusion filter).
-    const webDataSource = new CfnResource(this, "KnowledgeBaseWebDataSource", {
-      type: "AWS::Bedrock::DataSource",
-      properties: {
-        Name: "adaptive-gaming-guide-web",
-        KnowledgeBaseId: knowledgeBase.getAtt("KnowledgeBaseId").toString(),
-        DataSourceConfiguration: {
-          Type: "WEB",
-          WebConfiguration: {
-            SourceConfiguration: {
-              UrlConfiguration: {
-                SeedUrls: webSeedUrls.valueAsList.map((url) => ({ Url: url }))
-              }
-            },
-            CrawlerConfiguration: {
-              Scope: "SUBDOMAINS",
-              CrawlerLimits: {
-                RateLimit: 30
-              },
-              InclusionFilters: [".*\\.(mp4|mov|mkv|webm|flv|mpeg|mpg|wmv|3gp|avi)$"]
-            }
-          }
-        }
-      }
-    });
-    webDataSource.node.addDependency(knowledgeBase);
-
-    // Allow the KB role to access the collection. (Simplified access policy)
-    const accessPolicy = new CfnResource(this, "VectorAccessPolicy", {
-      type: "AWS::OpenSearchServerless::AccessPolicy",
-      properties: {
-        Name: "adaptive-gaming-access",
-        Type: "data",
-        Policy: JSON.stringify([
-          {
-            Rules: [
-              {
-                ResourceType: "collection",
-                Resource: [`collection/${collectionName}`],
-                Permission: [
-                  "aoss:DescribeCollectionItems",
-                  "aoss:CreateCollectionItems",
-                  "aoss:UpdateCollectionItems"
-                ]
-              },
-              {
-                ResourceType: "index",
-                Resource: [`index/${collectionName}/*`],
-                Permission: [
-                  "aoss:DescribeIndex",
-                  "aoss:CreateIndex",
-                  "aoss:UpdateIndex",
-                  "aoss:ReadDocument",
-                  "aoss:WriteDocument"
-                ]
-              }
-            ],
-            Principal: [kbRole.roleArn]
-          }
-        ])
-      }
-    });
-    accessPolicy.node.addDependency(aossCollection);
+    // Knowledge Base ID is provided post-deployment after the KB is created manually.
+    // Set via Lambda environment variable update once the KB is ready.
+    const bedrockKbId = this.node.tryGetContext("bedrockKbId") as string ?? "";
 
     const agentFn = new lambda.Function(this, "AiAgentFn", {
       runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset("lambda/ai-agent"),
       handler: "handler.handler",
-      timeout: Duration.seconds(30),
+      timeout: Duration.seconds(60),
       memorySize: 1024,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logRetention: logs.RetentionDays.ONE_MONTH,
       environment: {
-        BEDROCK_KB_ID: knowledgeBase.getAtt("KnowledgeBaseId").toString(),
+        BEDROCK_KB_ID: bedrockKbId,
         BEDROCK_MODEL_ID: bedrockModelId,
         BEDROCK_MODEL_ARN: bedrockModelArn?.trim() ? bedrockModelArn.trim() : ""
       }
@@ -215,10 +59,7 @@ export class AdaptiveGamingChatbotStack extends Stack {
           "bedrock:RetrieveAndGenerate",
           "bedrock:InvokeModel",
           "bedrock:GetInferenceProfile",
-          "bedrock:ListInferenceProfiles",
-          // Some third-party models require a Marketplace subscription enablement step.
-          "aws-marketplace:ViewSubscriptions",
-          "aws-marketplace:Subscribe"
+          "bedrock:ListInferenceProfiles"
         ],
         resources: ["*"]
       })
@@ -233,8 +74,17 @@ export class AdaptiveGamingChatbotStack extends Stack {
       }
     });
 
+    // Apply default throttling to protect against abuse and runaway Bedrock costs
+    const defaultStageOptions = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
+    if (defaultStageOptions) {
+      defaultStageOptions.defaultRouteSettings = {
+        throttlingBurstLimit: 20,
+        throttlingRateLimit: 10
+      };
+    }
+
     const httpAccessLogs = new logs.LogGroup(this, "ChatApiAccessLogs", {
-      retention: logs.RetentionDays.ONE_WEEK,
+      retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: RemovalPolicy.DESTROY
     });
     const defaultStage = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage;
@@ -332,14 +182,12 @@ export class AdaptiveGamingChatbotStack extends Stack {
     new CfnOutput(this, "HttpApiUrl", {
       value: httpApi.apiEndpoint
     });
-    new CfnOutput(this, "KnowledgeBaseId", {
-      value: knowledgeBase.getAtt("KnowledgeBaseId").toString()
-    });
-    new CfnOutput(this, "OpenSearchCollectionName", {
-      value: collectionName
-    });
     new CfnOutput(this, "AmplifyAppId", {
       value: amplifyApp.attrAppId
+    });
+    new CfnOutput(this, "BedrockKbIdNote", {
+      value: "Set BEDROCK_KB_ID on the Lambda function after creating your Knowledge Base manually.",
+      description: "Post-deployment: update Lambda env var BEDROCK_KB_ID with your KB ID"
     });
   }
 }

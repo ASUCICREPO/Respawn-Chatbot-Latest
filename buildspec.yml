@@ -1,19 +1,20 @@
 version: 0.2
 
-# AWS CodeBuild buildspec for ReSpawn Adaptive Gaming ChatBot
-# This file automates the deployment process using AWS CodeBuild
-
-env:
-  parameter-store:
-    # Store your GitHub token in AWS Systems Manager Parameter Store
-    # aws ssm put-parameter --name "/respawn/github-token" --value "your-token" --type "SecureString"
-    AMPLIFY_OAUTH_TOKEN: /respawn/github-token
-  variables:
-    # Deployment configuration
-    AWS_REGION: us-east-1
-    AMPLIFY_REPOSITORY: https://github.com/ASUCICREPO/Respawn-Chatbot-Latest
-    WEB_CRAWL_SEED_URLS: https://www.gamingreadapted.com/,https://gameaccess.info/
-    AMPLIFY_BRANCH: main
+# --------------------------------------------------
+# ReSpawn - Adaptive Gaming ChatBot
+# AWS CodeBuild buildspec
+#
+# Environment variables injected by deploy.sh:
+#   GITHUB_TOKEN        - GitHub personal access token
+#   AWS_REGION          - Target AWS region
+#   AMPLIFY_REPOSITORY  - Full GitHub HTTPS URL
+#   AMPLIFY_OAUTH_TOKEN - Same as GITHUB_TOKEN (used by Amplify to pull repo)
+#   AMPLIFY_BRANCH      - Branch to deploy
+#   ACTION              - deploy or destroy
+#
+# Note: Knowledge Base is created separately after deployment.
+# Update the Lambda BEDROCK_KB_ID environment variable once your KB is ready.
+# --------------------------------------------------
 
 phases:
   install:
@@ -21,55 +22,82 @@ phases:
       nodejs: 20
       python: 3.11
     commands:
-      - echo "Installing dependencies..."
-      - echo "Node version:" && node --version
-      - echo "NPM version:" && npm --version
-      - echo "Python version:" && python3 --version
+      - echo "=== Install phase ==="
+      - node --version
+      - npm --version
       - npm install -g aws-cdk
-      - echo "CDK version:" && cdk --version
-      
+      - cdk --version
+
   pre_build:
     commands:
-      - echo "Pre-build phase started..."
+      - echo "=== Pre-build phase ==="
       - export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-      - echo "AWS Account ID:" $AWS_ACCOUNT_ID
-      - echo "AWS Region:" $AWS_REGION
-      - export AWS_PROFILE=default
-      - echo "Installing CDK dependencies..."
+      - echo "Account  : $AWS_ACCOUNT_ID"
+      - echo "Region   : $AWS_REGION"
+      - echo "Action   : $ACTION"
+      - echo "Repo     : $AMPLIFY_REPOSITORY"
+      - echo "Branch   : $AMPLIFY_BRANCH"
       - cd backend/infrastructure/cdk
       - npm install
       - echo "Bootstrapping CDK..."
-      - npx cdk bootstrap aws://${AWS_ACCOUNT_ID}/${AWS_REGION} || echo "CDK already bootstrapped"
+      - npx cdk bootstrap aws://${AWS_ACCOUNT_ID}/${AWS_REGION} --region ${AWS_REGION} || echo "Already bootstrapped"
       - cd ../../..
-      
+
   build:
     commands:
-      - echo "Build phase started..."
-      - echo "Deploying infrastructure stack..."
-      - chmod +x scripts/deploy.sh
-      - ./scripts/deploy.sh
-      
+      - echo "=== Build phase ==="
+      - cd backend/infrastructure/cdk
+      - |
+        if [ "$ACTION" = "destroy" ]; then
+          echo "Destroying stack..."
+          npx cdk destroy --force --region ${AWS_REGION}
+        else
+          echo "Deploying stack..."
+          npx cdk deploy --require-approval never \
+            --region ${AWS_REGION} \
+            --parameters AmplifyRepository="${AMPLIFY_REPOSITORY}" \
+            --parameters AmplifyOauthToken="${AMPLIFY_OAUTH_TOKEN}" \
+            --parameters AmplifyBranch="${AMPLIFY_BRANCH}"
+        fi
+      - cd ../../..
+
   post_build:
     commands:
-      - echo "Post-build phase started..."
-      - echo "Deployment completed successfully!"
-      - echo "Checking for Amplify URL..."
+      - echo "=== Post-build phase ==="
       - |
-        if [ -f amplify-url.txt ]; then
-          echo "Amplify Application URL:"
-          cat amplify-url.txt
+        if [ "$ACTION" = "deploy" ]; then
+          APP_ID=$(aws amplify list-apps \
+            --region ${AWS_REGION} \
+            --query "apps[?name=='adaptive-gaming-guide'].appId | [0]" \
+            --output text 2>/dev/null || echo "")
+          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
+            DOMAIN=$(aws amplify get-app \
+              --app-id "$APP_ID" \
+              --region ${AWS_REGION} \
+              --query "app.defaultDomain" \
+              --output text 2>/dev/null || echo "")
+            if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "None" ]; then
+              echo "=================================================="
+              echo "  App URL: https://${AMPLIFY_BRANCH}.${DOMAIN}"
+              echo "=================================================="
+            fi
+          fi
+          echo ""
+          echo "Next steps:"
+          echo "1. Enable Bedrock model access in AWS Console"
+          echo "   → Amazon Bedrock → Model access → Nova Lite + Titan Embeddings"
+          echo "2. Create your Knowledge Base manually in Amazon Bedrock"
+          echo "3. Update the Lambda BEDROCK_KB_ID environment variable with your KB ID"
+          echo "   → Lambda → AdaptiveGamingChatbotStack-AiAgentFn → Configuration → Environment variables"
         else
-          echo "Amplify URL file not found"
+          echo "Stack destroyed successfully."
         fi
-      - echo "Deployment outputs saved to artifacts"
 
 artifacts:
   files:
-    - amplify-url.txt
-    - backend/infrastructure/cdk/cdk.out/**/*
-  name: respawn-deployment-$(date +%Y%m%d-%H%M%S)
+    - "**/*"
+  discard-paths: no
 
 cache:
   paths:
-    - 'backend/infrastructure/cdk/node_modules/**/*'
-    - 'frontend/node_modules/**/*'
+    - backend/infrastructure/cdk/node_modules/**/*

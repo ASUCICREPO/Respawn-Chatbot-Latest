@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import uuid
 
 import boto3
@@ -53,6 +54,30 @@ def json_response(status_code, body):
         },
         "body": json.dumps(body),
     }
+
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+MAX_MESSAGE_LENGTH = 2000
+
+
+def parse_and_validate_payload(payload):
+    """Parse and validate common chat payload fields.
+    Returns (message, conversation_id, language) or raises ValueError."""
+    message = payload.get("message") if isinstance(payload.get("message"), str) else ""
+    message = message.strip()
+
+    if not message:
+        raise ValueError("`message` is required.")
+    if len(message) > MAX_MESSAGE_LENGTH:
+        raise ValueError(f"`message` must be {MAX_MESSAGE_LENGTH} characters or fewer.")
+
+    raw_conv_id = payload.get("conversationId")
+    conversation_id = None
+    if isinstance(raw_conv_id, str) and _UUID_RE.fullmatch(raw_conv_id):
+        conversation_id = raw_conv_id
+
+    language = "es" if payload.get("language") == "es" else "en"
+    return message, conversation_id, language
 
 
 def is_greeting(message):
@@ -196,13 +221,10 @@ def handler(event, _context):
     except json.JSONDecodeError:
         return json_response(400, {"error": "Invalid JSON body."})
 
-    message = payload.get("message") if isinstance(payload.get("message"), str) else ""
-    message = message.strip()
-    conversation_id = payload.get("conversationId") if isinstance(payload.get("conversationId"), str) else None
-    language = "es" if payload.get("language") == "es" else "en"
-
-    if not message:
-        return json_response(400, {"error": "`message` is required."})
+    try:
+        message, conversation_id, language = parse_and_validate_payload(payload)
+    except ValueError as ve:
+        return json_response(400, {"error": str(ve)})
 
     # Handle greetings with a friendly welcome message
     if is_greeting(message):
@@ -287,13 +309,10 @@ def handle_streaming_chat(event):
     except json.JSONDecodeError:
         return json_response(400, {"error": "Invalid JSON body."})
 
-    message = payload.get("message") if isinstance(payload.get("message"), str) else ""
-    message = message.strip()
-    conversation_id = payload.get("conversationId") if isinstance(payload.get("conversationId"), str) else None
-    language = "es" if payload.get("language") == "es" else "en"
-
-    if not message:
-        return json_response(400, {"error": "`message` is required."})
+    try:
+        message, conversation_id, language = parse_and_validate_payload(payload)
+    except ValueError as ve:
+        return json_response(400, {"error": str(ve)})
 
     # Handle greetings with a friendly welcome message
     if is_greeting(message):
