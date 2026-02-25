@@ -128,7 +128,7 @@ export class AdaptiveGamingChatbotStack extends Stack {
         name: "adaptive-gaming-guide",
         repository: amplifyRepo,
         oauthToken: amplifyOauthToken,
-        platform: "WEB_COMPUTE",
+        platform: "WEB",
         iamServiceRole: amplifyRole.roleArn,
         buildSpec: `version: 1
 frontend:
@@ -136,7 +136,7 @@ frontend:
     preBuild:
       commands:
         - cd frontend
-        - npm ci --no-fund --no-audit
+        - npm ci
     build:
       commands:
         - npm run build
@@ -151,14 +151,6 @@ frontend:
           {
             name: "NEXT_PUBLIC_API_URL",
             value: httpApi.apiEndpoint
-          },
-          {
-            name: "_LIVE_UPDATES",
-            value: JSON.stringify([{
-              pkg: "next-version",
-              type: "internal",
-              version: "latest"
-            }])
           }
         ]
       });
