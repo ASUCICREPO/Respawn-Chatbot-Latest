@@ -35,7 +35,7 @@ This is a one-time manual step that must be done before deployment.
 1. Go to **AWS Console → Amazon Bedrock → Model access**
 2. Click **Manage model access**
 3. Enable the following models:
-   - **Amazon Nova Lite** — used for chat responses
+   - **Claude Sonnet 4.5** — used for chat responses
    - **Titan Embeddings G1 - Text v2** — used for vector embeddings
 4. Click **Save changes** and wait for status to show **Access granted**
 

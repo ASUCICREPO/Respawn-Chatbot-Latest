@@ -115,32 +115,64 @@ export class AdaptiveGamingChatbotStack extends Stack {
     const amplifyOauthToken = this.node.tryGetContext("amplifyOauthToken") as string;
     const amplifyBranchName = this.node.tryGetContext("amplifyBranch") as string ?? "main";
 
-    const amplifyRole = new iam.Role(this, "AmplifyServiceRole", {
-      assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com")
-    });
-    amplifyRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess-Amplify")
-    );
+    // Only validate and create Amplify resources if values are provided (skip during destroy)
+    if (amplifyRepo && amplifyOauthToken && amplifyRepo !== "dummy") {
+      const amplifyRole = new iam.Role(this, "AmplifyServiceRole", {
+        assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com")
+      });
+      amplifyRole.addManagedPolicy(
+        iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess-Amplify")
+      );
 
-    const amplifyApp = new amplify.CfnApp(this, "AdaptiveGamingAmplifyApp", {
-      name: "adaptive-gaming-guide",
-      repository: amplifyRepo,
-      oauthToken: amplifyOauthToken,
-      platform: "WEB",
-      iamServiceRole: amplifyRole.roleArn,
-      environmentVariables: [
-        {
-          name: "NEXT_PUBLIC_API_URL",
-          value: httpApi.apiEndpoint
-        }
-      ]
-    });
+      const amplifyApp = new amplify.CfnApp(this, "AdaptiveGamingAmplifyApp", {
+        name: "adaptive-gaming-guide",
+        repository: amplifyRepo,
+        oauthToken: amplifyOauthToken,
+        platform: "WEB_COMPUTE",
+        iamServiceRole: amplifyRole.roleArn,
+        buildSpec: `version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd frontend
+        - npm ci --no-fund --no-audit
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: frontend/out
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*`,
+        environmentVariables: [
+          {
+            name: "NEXT_PUBLIC_API_URL",
+            value: httpApi.apiEndpoint
+          },
+          {
+            name: "_LIVE_UPDATES",
+            value: JSON.stringify([{
+              pkg: "next-version",
+              type: "internal",
+              version: "latest"
+            }])
+          }
+        ]
+      });
 
-    new amplify.CfnBranch(this, "AdaptiveGamingAmplifyBranch", {
-      appId: amplifyApp.attrAppId,
-      branchName: amplifyBranchName,
-      enableAutoBuild: true
-    });
+      new amplify.CfnBranch(this, "AdaptiveGamingAmplifyBranch", {
+        appId: amplifyApp.attrAppId,
+        branchName: amplifyBranchName,
+        enableAutoBuild: true
+      });
+
+      new CfnOutput(this, "AmplifyAppId", {
+        value: amplifyApp.attrAppId
+      });
+    }
 
     httpApi.addRoutes({
       path: "/api/chat",
@@ -171,9 +203,6 @@ export class AdaptiveGamingChatbotStack extends Stack {
 
     new CfnOutput(this, "HttpApiUrl", {
       value: httpApi.apiEndpoint
-    });
-    new CfnOutput(this, "AmplifyAppId", {
-      value: amplifyApp.attrAppId
     });
     new CfnOutput(this, "BedrockKbIdNote", {
       value: "Set BEDROCK_KB_ID on the Lambda function after creating your Knowledge Base manually.",

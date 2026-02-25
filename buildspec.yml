@@ -14,10 +14,7 @@ phases:
     commands:
       - echo "Bootstrapping CDK..."
       - export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-      - >-
-        cd backend/infrastructure/cdk &&
-        npx cdk bootstrap aws://${AWS_ACCOUNT_ID}/${AWS_REGION} --require-approval never &&
-        cd ../../..
+      - cd backend/infrastructure/cdk && npx cdk bootstrap aws://${AWS_ACCOUNT_ID}/${AWS_REGION} --require-approval never && cd ../../..
 
   build:
     commands:
@@ -25,15 +22,10 @@ phases:
         cd backend/infrastructure/cdk &&
         if [ "$ACTION" = "destroy" ]; then
           echo "Destroying stack...";
-          npx cdk destroy --all --force
-            --region ${AWS_REGION};
+          npx cdk destroy --all --force -c amplifyRepository="dummy" -c amplifyOauthToken="dummy" -c amplifyBranch="main";
         else
           echo "Deploying stack...";
-          npx cdk deploy --all --require-approval never
-            --region ${AWS_REGION}
-            --parameters AmplifyRepository="${AMPLIFY_REPOSITORY}"
-            --parameters AmplifyOauthToken="${AMPLIFY_OAUTH_TOKEN}"
-            --parameters AmplifyBranch="${AMPLIFY_BRANCH}";
+          npx cdk deploy --all --require-approval never -c amplifyRepository="${AMPLIFY_REPOSITORY}" -c amplifyOauthToken="${AMPLIFY_OAUTH_TOKEN}" -c amplifyBranch="${AMPLIFY_BRANCH}";
         fi &&
         cd ../../..
 
